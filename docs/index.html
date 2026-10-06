@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AgentWitness — read-only trust explorer for Intuition</title>
+  <meta name="description" content="Paste an address, atom or triple and read its live trust graph on Intuition: who staked for or against, signal history, backers and a sybil heuristic. Read-only, no wallet." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="?" data-link>
+      <span class="logo">🔎</span>
+      <span class="brand-text">AgentWitness</span>
+      <span class="brand-sub">read-only trust explorer · Intuition</span>
+    </a>
+    <form id="search" class="search" autocomplete="off">
+      <input id="q" name="q" type="text" spellcheck="false"
+        placeholder="Paste an address, atom / triple id, or a name…" />
+      <button type="submit">Explore</button>
+    </form>
+  </header>
+
+  <main id="app" class="app">
+    <div class="loading">Loading…</div>
+  </main>
+
+  <footer class="foot">
+    <span>Data: <a href="https://mainnet.intuition.sh/v1/graphql" target="_blank" rel="noopener">Intuition indexer (GraphQL)</a> · <a href="https://explorer.intuition.systems" target="_blank" rel="noopener">explorer</a></span>
+    <span class="foot-note">Read-only. No wallet, no signing, no transactions. The sybil flag is a heuristic, not proof.</span>
+    <span><a href="https://github.com/" target="_blank" rel="noopener" id="repo-link">source</a></span>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
