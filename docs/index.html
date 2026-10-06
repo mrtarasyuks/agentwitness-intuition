@@ -5,13 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AgentWitness — read-only trust explorer for Intuition</title>
   <meta name="description" content="Paste an address, atom or triple and read its live trust graph on Intuition: who staked for or against, signal history, backers and a sybil heuristic. Read-only, no wallet." />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237aa2ff' stroke-width='2.4' stroke-linecap='round'><rect width='24' height='24' rx='6' fill='%230b1020'/><circle cx='10.5' cy='10.5' r='5'/><line x1='19' y1='19' x2='14.5' y2='14.5'/></svg>" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div class="aurora" aria-hidden="true"><b class="b1"></b><b class="b2"></b><b class="b3"></b></div>
+  <div class="grid-fade" aria-hidden="true"></div>
+
   <header class="topbar">
     <a class="brand" href="?" data-link>
-      <span class="logo">🔎</span>
+      <span class="logo"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
       <span class="brand-text">AgentWitness</span>
       <span class="brand-sub">read-only trust explorer · Intuition</span>
     </a>

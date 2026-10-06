@@ -58,6 +58,108 @@ function timeAgo(iso) {
 }
 function dateStr(iso) { return new Date(iso).toISOString().slice(0, 10); }
 
+const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+/* Designed emoji / initial tiles instead of raw emoji.
+   The colour is derived deterministically from the atom id or label. */
+function hashHue(s) { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; }
+function initials(label) {
+  const s = String(label || "?").replace(/^0x/, "").trim();
+  const parts = s.split(/[\s_\-.:/]+/).filter(Boolean);
+  let r = (parts[0] && parts[0][0]) || s[0] || "?";
+  if (parts[1] && parts[1][0]) r += parts[1][0];
+  return r.toUpperCase().slice(0, 2);
+}
+function avatar(emoji, label, id, size) {
+  let e = (emoji || "").trim();
+  if (e === "•" || e === "·" || e === "-") e = ""; // bullets → designed initials tile
+  const hue = hashHue(id || label || "x");
+  const cls = "av" + (size ? " " + size : "") + (e ? "" : " ini");
+  return `<span class="${cls}" style="--h:${hue}">${e ? esc(e) : esc(initials(label))}</span>`;
+}
+
+/* Inline line-icons — used instead of raw UI emoji so the chrome stays "designed".
+   All stroke currentColor, 24×24 viewBox. */
+const ICON = {
+  search: `<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+  person: `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>`,
+  shieldCheck: `<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.6-3 8-7 10-4-2-7-5.4-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>`,
+  shieldWarn: `<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.6-3 8-7 10-4-2-7-5.4-7-10V6z"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16" r=".6"/></svg>`,
+  shieldAlert: `<svg viewBox="0 0 24 24"><path d="M10.3 3.2L2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.2a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16.5" r=".6"/></svg>`,
+  atom: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><ellipse cx="12" cy="12" rx="10" ry="4.5"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(120 12 12)"/></svg>`,
+  link: `<svg viewBox="0 0 24 24"><path d="M9 15l6-6"/><path d="M10.5 6.5l1.5-1.5a4 4 0 0 1 5.7 5.7l-2.2 2.2"/><path d="M13.5 17.5L12 19a4 4 0 0 1-5.7-5.7l2.2-2.2"/></svg>`,
+  signal: `<svg viewBox="0 0 24 24"><path d="M4 14l4-4 4 3 5-7"/><path d="M17 6h3v3"/></svg>`,
+  user: `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5"/></svg>`,
+};
+// A gradient tile holding a line-icon, same shape as avatar() tiles.
+function iconTile(svg, seed, size) {
+  const hue = hashHue(seed || "x");
+  return `<span class="av${size ? " " + size : ""}" style="--h:${hue}">${svg}</span>`;
+}
+
+/* a short "magic" ripple + sparks from a point, plus a page-wide shimmer, then resolve */
+function magic(x, y) {
+  return new Promise((res) => {
+    if (reduced) return res();
+    // page-wide flash of light centred on the field
+    const b = document.body;
+    b.style.setProperty("--fx", (x / window.innerWidth * 100) + "%");
+    b.style.setProperty("--fy", (y / window.innerHeight * 100) + "%");
+    b.classList.add("flash");
+    setTimeout(() => b.classList.remove("flash"), 650);
+    // local ripple + sparks from the field
+    const el = document.createElement("div");
+    el.className = "magic";
+    el.style.left = x + "px"; el.style.top = y + "px";
+    const colors = ["#8be9c0", "#7aa2ff", "#67e8f9", "#b58bff"];
+    const n = 14;
+    for (let i = 0; i < n; i++) {
+      const sp = document.createElement("i");
+      const ang = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+      const dist = 70 + Math.random() * 70;
+      sp.style.setProperty("--dx", Math.cos(ang) * dist + "px");
+      sp.style.setProperty("--dy", Math.sin(ang) * dist + "px");
+      sp.style.setProperty("--spark", colors[i % colors.length]);
+      el.appendChild(sp);
+    }
+    document.body.appendChild(el);
+    setTimeout(() => { el.remove(); res(); }, 420);
+  });
+}
+
+/* animate the just-rendered stat numbers and consensus bars */
+function animateIn() {
+  if (!reduced) document.querySelectorAll(".stat .v, .flag .pct").forEach(countUp);
+  document.querySelectorAll(".bar > span").forEach((s) => {
+    const w = s.style.width; if (!w) return;
+    if (reduced) return;
+    s.style.width = "0";
+    requestAnimationFrame(() => requestAnimationFrame(() => { s.style.width = w; }));
+  });
+}
+function countUp(el) {
+  const html = el.innerHTML;
+  const m = html.match(/-?\d[\d,]*\.?\d*/);
+  if (!m) return;
+  const target = parseFloat(m[0].replace(/,/g, ""));
+  if (!isFinite(target) || target === 0) return;
+  const pre = html.slice(0, m.index), suf = html.slice(m.index + m[0].length);
+  const dec = (m[0].split(".")[1] || "").length;
+  const grouped = m[0].indexOf(",") >= 0;
+  const t0 = performance.now(), dur = 700;
+  function tick(now) {
+    const p = Math.min(1, (now - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3);
+    const v = target * e;
+    const txt = grouped ? v.toLocaleString("en-US", { maximumFractionDigits: dec, minimumFractionDigits: dec })
+                        : v.toFixed(dec);
+    el.innerHTML = pre + txt + suf;
+    if (p < 1) requestAnimationFrame(tick);
+    else el.innerHTML = pre + m[0] + suf;
+  }
+  requestAnimationFrame(tick);
+}
+
 async function gql(query, variables) {
   const r = await fetch(ENDPOINT, {
     method: "POST",
@@ -74,6 +176,10 @@ function mainVault(term) {
   const vs = (term && term.vaults) || [];
   return vs.find(v => String(v.curve_id) === MAIN_CURVE) || vs[0] || null;
 }
+
+// A referenced atom (subject/predicate/object) can be null on mainnet when the
+// underlying atom is missing; normalise so rendering never crashes on .label.
+function aref(x) { return x || { term_id: "", label: "(unknown)", emoji: "" }; }
 
 /* ---------- routing ---------- */
 function go(q) {
@@ -93,10 +199,30 @@ document.addEventListener("click", (e) => {
   if (nav) { e.preventDefault(); go(nav.getAttribute("data-go")); }
 });
 
-$("#search").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const v = $("#q").value.trim();
-  if (v) go(v);
+// A search was submitted: fire the "magic" ripple from the field, then route.
+async function submitFrom(inputEl) {
+  const v = (inputEl.value || "").trim();
+  if (!v) return;
+  const r = inputEl.getBoundingClientRect();
+  await magic(r.left + r.width / 2, r.top + r.height / 2);
+  go(v);
+}
+$("#search").addEventListener("submit", (e) => { e.preventDefault(); submitFrom($("#q")); });
+
+// Any search field lights up the whole page while it is focused.
+document.addEventListener("focusin", (e) => {
+  if (e.target.matches(".search input, .hero-field input")) {
+    document.body.classList.add("lit");
+    const wrap = e.target.closest(".hero-search");
+    if (wrap) wrap.classList.add("on");
+  }
+});
+document.addEventListener("focusout", (e) => {
+  if (e.target.matches(".search input, .hero-field input")) {
+    document.body.classList.remove("lit");
+    const wrap = e.target.closest(".hero-search");
+    if (wrap) wrap.classList.remove("on");
+  }
 });
 
 function classify(q) {
@@ -110,13 +236,18 @@ async function route() {
   const compare = p.get("compare");
   const q = (p.get("q") || p.get("address") || "").trim();
   $("#q").value = q;
+  document.body.classList.toggle("home", !q && !compare);
+  window.scrollTo({ top: 0 });
   try {
-    if (compare) return await renderCompare(compare.split(",").slice(0, 2));
-    if (!q) return await renderHome();
-    const kind = classify(q);
-    if (kind === "address") return await renderAccount(q);
-    if (kind === "term") return await renderTerm(q);
-    return await renderSearch(q);
+    if (compare) await renderCompare(compare.split(",").slice(0, 2));
+    else if (!q) await renderHome();
+    else {
+      const kind = classify(q);
+      if (kind === "address") await renderAccount(q);
+      else if (kind === "term") await renderTerm(q);
+      else await renderSearch(q);
+    }
+    animateIn();
   } catch (err) {
     app.innerHTML = `<div class="err">Could not load data from the Intuition indexer.<br><span class="small mono">${esc(err.message)}</span></div>`;
   }
@@ -126,19 +257,37 @@ async function route() {
 async function renderHome() {
   app.innerHTML = `
     <section class="hero">
-      <h1>Read the trust behind any Intuition atom — before you trust it.</h1>
-      <p>Paste a wallet, an atom, a triple, or just a name. AgentWitness reads the live Intuition
-      knowledge graph and shows you <b>who staked for or against it</b>, the full signal history, the
-      top backers, and a sybil heuristic that flags stake coming from fresh, low-activity accounts.
-      100% read-only — nothing to connect, nothing to sign.</p>
+      <div class="eyebrow"><span class="dot"></span> Live on Intuition mainnet · 100% read-only</div>
+      <h1>Read the <span class="hl">trust</span> behind any Intuition atom — before you trust it.</h1>
+      <p>Paste a wallet, an atom, a triple, or just a name. AgentWitness reads the live knowledge graph
+      and shows who staked for or against it, the full signal history, the top backers and a sybil heuristic.
+      Nothing to connect, nothing to sign.</p>
+      <form id="hero-form" class="hero-search" autocomplete="off">
+        <div class="hero-field">
+          <span class="ico">${ICON.search}</span>
+          <input id="hero-q" type="text" spellcheck="false"
+            placeholder="0x address, atom / triple id, or a name…" />
+          <button type="submit">Explore</button>
+        </div>
+      </form>
       <div class="chips">
+        <span class="lbl">try:</span>
         ${EXAMPLES.map(e => `<button class="chip" data-go="${esc(e.q)}">${esc(e.q)} <small>${esc(e.note)}</small></button>`).join("")}
+      </div>
+      <div class="netstats" id="netstats">
+        ${[["atom", "Atoms"], ["link", "Triples"], ["signal", "Signals"], ["user", "Accounts"], ["shieldCheck", "TRUST staked"]]
+          .map(([ic, k]) => `<div class="netstat skeleton"><div class="nv">···</div><div class="nk">${ICON[ic]} ${k}</div></div>`).join("")}
       </div>
     </section>
     <div class="grid2">
-      <div class="panel"><h2>Most-staked atoms</h2><p class="hint">Where the most TRUST is at stake right now.</p><div id="top-atoms" class="list"><div class="loading">Loading…</div></div></div>
-      <div class="panel"><h2>Biggest “trusts” claims</h2><p class="hint">Triples using the <b>trusts</b> predicate, ranked by backing.</p><div id="top-trust" class="list"><div class="loading">Loading…</div></div></div>
+      <div class="panel"><h2>Most-staked atoms</h2><p class="hint">Where the most TRUST is at stake right now.</p><div id="top-atoms" class="list"><div class="loading">Loading</div></div></div>
+      <div class="panel"><h2>Biggest “trusts” claims</h2><p class="hint">Triples using the <b>trusts</b> predicate, ranked by backing.</p><div id="top-trust" class="list"><div class="loading">Loading</div></div></div>
     </div>`;
+
+  const hf = $("#hero-form");
+  if (hf) hf.addEventListener("submit", (e) => { e.preventDefault(); submitFrom($("#hero-q")); });
+
+  loadNetStats(); // fills the strip asynchronously; failure just hides it
 
   const data = await gql(`
     query home($pred:String!){
@@ -162,10 +311,11 @@ async function renderHome() {
 
   $("#top-trust").innerHTML = data.triples.map((t, i) => {
     const f = toTrust(t.term && t.term.total_assets), ag = toTrust(t.counter_term && t.counter_term.total_assets);
+    const subj = aref(t.subject), obj = aref(t.object);
     return `<div class="row" data-go="${esc(t.term_id)}">
       <span class="rank">${i + 1}</span>
       <div class="main">
-        <div class="ttl">${esc(t.subject.emoji || "")} ${esc(t.subject.label)} <span class="muted">trusts</span> ${esc(t.object.emoji || "")} ${esc(t.object.label)}</div>
+        <div class="ttl">${avatar(subj.emoji, subj.label, subj.label, "sm")} ${esc(subj.label)} <span class="muted">trusts</span> ${avatar(obj.emoji, obj.label, obj.label, "sm")} ${esc(obj.label)}</div>
         <div class="sub">for ${fmt(f)} · against ${fmt(ag)} TRUST</div>
       </div>
       <div class="val"><b>${fmt(f + ag)}</b><small>TRUST</small></div>
@@ -173,10 +323,42 @@ async function renderHome() {
   }).join("") || emptyHTML("No “trusts” claims yet.");
 }
 
+/* Live, chain-wide counters shown under the hero. Loaded on its own so a failure
+   here never blocks the home lists. Only real numbers from the indexer are shown. */
+async function loadNetStats() {
+  const box = $("#netstats");
+  if (!box) return;
+  try {
+    const d = await gql(`query stats{
+      atoms_aggregate{aggregate{count}}
+      triples_aggregate{aggregate{count}}
+      signals_aggregate{aggregate{count}}
+      accounts_aggregate{aggregate{count}}
+      vaults_aggregate(where:{curve_id:{_eq:1}}){aggregate{sum{total_assets}}}
+    }`);
+    if (!$("#netstats")) return; // user navigated away
+    const c = (x) => (x && x.aggregate && x.aggregate.count) || 0;
+    const staked = d.vaults_aggregate && d.vaults_aggregate.aggregate.sum &&
+                   d.vaults_aggregate.aggregate.sum.total_assets;
+    const cells = [
+      ["atom", "Atoms", fmt(c(d.atoms_aggregate), 0)],
+      ["link", "Triples", fmt(c(d.triples_aggregate), 0)],
+      ["signal", "Signals", fmt(c(d.signals_aggregate), 0)],
+      ["user", "Accounts", fmt(c(d.accounts_aggregate), 0)],
+    ];
+    if (staked != null) cells.push(["shieldCheck", "TRUST staked", trust(staked, 0)]);
+    box.innerHTML = cells.map(([ic, k, v]) =>
+      `<div class="netstat"><div class="nv">${v}</div><div class="nk">${ICON[ic]} ${esc(k)}</div></div>`).join("");
+    if (!reduced) box.querySelectorAll(".nv").forEach(countUp);
+  } catch {
+    box.remove(); // no made-up numbers: if the indexer won't answer, show nothing
+  }
+}
+
 function rowHTML(goId, rank, emoji, title, sub, valHTML) {
   return `<div class="row" data-go="${esc(goId)}">
     ${rank != null ? `<span class="rank">${rank}</span>` : ""}
-    <span class="emoji">${esc(emoji)}</span>
+    ${avatar(emoji, title, goId)}
     <div class="main"><div class="ttl">${esc(title)}</div><div class="sub">${sub}</div></div>
     <div class="val"><b>${valHTML}</b></div>
   </div>`;
@@ -245,7 +427,7 @@ async function renderAtom(id) {
   app.innerHTML = `
     <div class="crumbs"><a href="?" data-link>home</a> › atom</div>
     <div class="phead">
-      <div class="big-emoji">${esc(a.emoji || "•")}</div>
+      ${avatar(a.emoji, a.label, a.term_id, "lg")}
       <div class="htext">
         <h1>${esc(a.label || "(unnamed atom)")}</h1>
         <div class="meta">
@@ -292,7 +474,7 @@ async function renderAtom(id) {
 
     <div class="section">
       <p class="muted small">Compare this atom with another:
-        <input id="cmp-in" placeholder="atom id or name" style="background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:6px 10px">
+        <input id="cmp-in" class="inp" placeholder="atom id or name">
         <button class="chip" id="cmp-btn">Compare →</button></p>
     </div>`;
 
@@ -321,12 +503,14 @@ async function resolveLabelToId(label) {
 function claimSection(title, triples, side) {
   if (!triples || !triples.length) return "";
   const rows = triples.map(t => {
-    const other = t[side] || {};
+    const other = aref(t[side]);
+    const pred = aref(t.predicate);
     const f = toTrust(t.term && t.term.total_assets), ag = toTrust(t.counter_term && t.counter_term.total_assets);
     const tot = f + ag, pf = tot > 0 ? (f / tot * 100) : 100;
+    const otherTok = `<span class="tok" data-go="${esc(idOf(other))}">${avatar(other.emoji, other.label, idOf(other), "sm")} ${esc(other.label)}</span>`;
     const left = side === "object"
-      ? `<span class="pred muted">${esc(t.predicate.label)}</span> <span class="tok" data-go="${esc(idOf(other))}">${esc(other.emoji || "")} ${esc(other.label)}</span>`
-      : `<span class="tok" data-go="${esc(idOf(other))}">${esc(other.emoji || "")} ${esc(other.label)}</span> <span class="pred muted">${esc(t.predicate.label)}</span>`;
+      ? `<span class="pred muted">${esc(pred.label)}</span> ${otherTok}`
+      : `${otherTok} <span class="pred muted">${esc(pred.label)}</span>`;
     return `<div class="row" data-go="${esc(t.term_id)}" style="cursor:pointer">
       <div class="main">
         <div class="claim">${left}</div>
@@ -374,9 +558,9 @@ function sybilHTML(positions) {
   const byDay = {};
   bs.filter(b => b.fresh).forEach(b => { const d = dateStr(b.created_at); byDay[d] = (byDay[d] || 0) + 1; });
   const burst = Math.max(0, ...Object.values(byDay));
-  let level = "low", ico = "✅", title = "Low sybil signal";
-  if (share >= 0.5 || burst >= 5) { level = "high"; ico = "⚠️"; title = "Elevated sybil signal"; }
-  else if (share >= 0.25 || burst >= 3) { level = "mid"; ico = "🟡"; title = "Some sybil signal"; }
+  let level = "low", ico = ICON.shieldCheck, title = "Low sybil signal";
+  if (share >= 0.5 || burst >= 5) { level = "high"; ico = ICON.shieldAlert; title = "Elevated sybil signal"; }
+  else if (share >= 0.25 || burst >= 3) { level = "mid"; ico = ICON.shieldWarn; title = "Some sybil signal"; }
   return `<div class="flag ${level}">
     <div class="ico">${ico}</div>
     <div>
@@ -461,6 +645,7 @@ async function renderTriple(id) {
     }`, { id });
 
   const t = data.triples[0];
+  t.subject = aref(t.subject); t.predicate = aref(t.predicate); t.object = aref(t.object);
   const f = toTrust(t.term && t.term.total_assets), ag = toTrust(t.counter_term && t.counter_term.total_assets);
   const tot = f + ag, pf = tot > 0 ? f / tot * 100 : 100;
   const fv = (t.term && mainVault(t.term)) || {}, av = (t.counter_term && mainVault(t.counter_term)) || {};
@@ -469,10 +654,10 @@ async function renderTriple(id) {
     <div class="crumbs"><a href="?" data-link>home</a> › triple</div>
     <div class="phead">
       <div class="htext">
-        <h1 style="font-size:22px;line-height:1.35">
-          <span class="tok" data-go="${esc(t.subject.term_id)}">${esc(t.subject.emoji || "")} ${esc(t.subject.label)}</span>
+        <h1 style="font-size:22px;line-height:1.5">
+          <span class="tok" data-go="${esc(t.subject.term_id)}">${avatar(t.subject.emoji, t.subject.label, t.subject.term_id, "sm")} ${esc(t.subject.label)}</span>
           <span class="muted">${esc(t.predicate.label)}</span>
-          <span class="tok" data-go="${esc(t.object.term_id)}">${esc(t.object.emoji || "")} ${esc(t.object.label)}</span>
+          <span class="tok" data-go="${esc(t.object.term_id)}">${avatar(t.object.emoji, t.object.label, t.object.term_id, "sm")} ${esc(t.object.label)}</span>
         </h1>
         <div class="meta">
           <span>created ${esc(dateStr(t.created_at))}</span>
@@ -542,7 +727,7 @@ async function renderAccount(addr) {
   app.innerHTML = `
     <div class="crumbs"><a href="?" data-link>home</a> › account</div>
     <div class="phead">
-      <div class="big-emoji">${esc((ac.atom && ac.atom.emoji) || "👤")}</div>
+      ${ac.atom && ac.atom.emoji ? avatar(ac.atom.emoji, ac.label || ac.id, ac.id, "lg") : iconTile(ICON.person, ac.id, "lg")}
       <div class="htext">
         <h1>${esc(ac.label || shortAddr(ac.id))}</h1>
         <div class="meta">
@@ -580,11 +765,11 @@ function ownFlag(ac) {
   const own = mainVault(ac.atom.term) || {};
   const backers = own.position_count || 0;
   const staked = toTrust(own.total_assets);
-  if (backers <= 1) return { lvl: "mid", ico: "🟡", title: "Reputation is self-made",
+  if (backers <= 1) return { lvl: "mid", ico: ICON.shieldWarn, title: "Reputation is self-made",
     text: `Its atom has ${backers} backer${backers === 1 ? "" : "s"} and ${fmt(staked)} TRUST staked — little independent endorsement yet.` };
-  if (backers >= 10) return { lvl: "low", ico: "✅", title: "Community-backed",
+  if (backers >= 10) return { lvl: "low", ico: ICON.shieldCheck, title: "Community-backed",
     text: `${backers} different accounts have staked ${fmt(staked)} TRUST on this account's atom.` };
-  return { lvl: "mid", ico: "🟡", title: "Lightly endorsed",
+  return { lvl: "mid", ico: ICON.shieldWarn, title: "Lightly endorsed",
     text: `${backers} accounts have staked ${fmt(staked)} TRUST on this account's atom.` };
 }
 
@@ -594,8 +779,9 @@ function positionsHTML(positions) {
     const term = p.term || {};
     if (term.triple) {
       const tr = term.triple;
+      const s = aref(tr.subject), pr = aref(tr.predicate), o = aref(tr.object);
       return `<div class="row" data-go="${esc(tr.term_id || p.term_id)}">
-        <div class="main"><div class="ttl">${esc(tr.subject.emoji || "")} ${esc(tr.subject.label)} <span class="muted">${esc(tr.predicate.label)}</span> ${esc(tr.object.emoji || "")} ${esc(tr.object.label)}</div>
+        <div class="main"><div class="ttl">${avatar(s.emoji, s.label, s.label, "sm")} ${esc(s.label)} <span class="muted">${esc(pr.label)}</span> ${avatar(o.emoji, o.label, o.label, "sm")} ${esc(o.label)}</div>
         <div class="sub">claim · staked ${dateStr(p.created_at)}</div></div>
         <div class="val"><b>${trust(p.shares)}</b><small>shares</small></div></div>`;
     }
@@ -630,7 +816,7 @@ function compareCard(c) {
   const bs = backerFlags(c.positions);
   const fresh = bs.length ? Math.round(bs.filter(b => b.fresh).length / bs.length * 100) : 0;
   return `<div class="panel">
-    <div class="phead" style="margin-bottom:10px"><div class="big-emoji">${esc(a.emoji || "•")}</div>
+    <div class="phead" style="margin-bottom:10px">${avatar(a.emoji, a.label, a.term_id, "lg")}
       <div class="htext"><h1 style="font-size:20px">${esc(a.label || "(unnamed)")}</h1>
       <div class="meta"><span class="tag">${esc(a.type || "")}</span><a class="small" href="?${qp(a.term_id)}">open →</a></div></div></div>
     <table class="kv">
